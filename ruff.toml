@@ -1,0 +1,140 @@
+target-version = "py311"
+line-length = 79
+exclude = [
+    "tests",
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".nox",
+    ".pants.d",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "migration",
+    "migrations",
+    "*.j2",
+    "*.txt",
+]
+
+# Настройки линтеров
+[lint]
+select = [
+    # pycodestyle (E, W)
+    "E", "W",
+    # pydocstyle (D)
+    "D",
+    # Pyflakes (F)
+    "F",
+    # pyupgrade (UP)
+    "UP",
+    # mccabe (C90)
+    "C90",
+    # pep8-naming (N)
+    "N",
+    # flake8-builtins (A)
+    "A",
+    # flake8-bugbear
+    "B",
+    # flake8-annotations (ANN)
+    "ANN",
+    # flake8-bandit (S)
+    "S",
+    # flake8-comprehensions (C4)
+    "C4",
+    # flake8-debugger (T10)
+    "T10",
+    # flake8-print (T20)
+    "T20",
+    # flake8-quotes (Q)
+    "Q",
+    # flake8-django (DJ)
+    "DJ",
+    # flake8-return (RET)
+    "RET",
+    # flake8-unused-arguments (ARG)
+    "ARG",
+    # flake8-use-pathlib (PTH)
+    "PTH",
+    # pygrep-hooks (PGH)
+#    "PGH",
+]
+
+ignore = [
+    "D100",
+    "D104",
+    "D106",
+    "D107",
+    "D200",
+    "D203",
+    "D212",
+    "D400",
+    "D401",
+    "ANN101",
+    "ANN102",
+    "ANN204",
+    "ANN401",
+    "RET504",
+]
+
+extend-select = [
+    # Почему-то не работает по умолчанию, поэтому так
+    "D204",
+]
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Исключения для линтеров
+[lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+# Настройки форматтера
+[format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+# Настройки isort
+[lint.isort]
+lines-after-imports = 2
+lines-between-types = 1
+
+# Настройки mccabe
+[lint.mccabe]
+max-complexity = 10
+
+# Настройки flake8-quotes
+[lint.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "double"
+
+[lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.params.Depends",
+    "fastapi.Query",
+    "fastapi.params.Query",
+]
+
+[lint.pydocstyle]
+convention = "google"
