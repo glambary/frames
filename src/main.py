@@ -36,15 +36,15 @@ def main(excel_file_name: str, exe_file_name: str) -> None:
         name_fields=(),
         validate_to_schema=FramesBaseInputSchema,
     )
+    holes_data = ...
+    frames_data = excel_service.get_rows_data(...)
 
     # Черчение обрамлений
     FramesOneFold(
-        base_data=FramesBaseInputSchema(
-            thickness=1.0,
-            height_platband_stands=1998,
-            doorway=700,
-        )
-    )()
+        base_data=base_data,
+        thickness_frames=...,
+        holes_data=...,
+    )(frames_data=frames_data)
 
     # Сообщение о выполнении / статистика
 
