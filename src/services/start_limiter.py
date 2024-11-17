@@ -31,7 +31,7 @@ class SimpleStartLimiter:
         bios_date = self._get_bios_date()
 
         if system_date > self.dt or bios_date > self.dt:
-            raise StartUpError("Пробная версия окончена.")
+            raise StartUpError
 
     @classmethod
     def _get_bios_date(cls) -> date:

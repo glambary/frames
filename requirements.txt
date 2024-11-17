@@ -1,0 +1,8 @@
+# зависимости для windows
+# использую для установки на виртуальной машине Windows
+# pip install -r requirements.txt
+ezdxf
+openpyxl
+pydantic
+pyinstaller
+wmi

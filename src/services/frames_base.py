@@ -1,47 +1,79 @@
 import math
+from typing import assert_never
 
 from ezdxf.math import ConstructionArc, Vec2
 
+from schemas.frames_common.input import FramesBaseInputSchema
+from services.ezdxf import EzDxfService
 
-class FramesBase:
-    def __init__(self, dxf):
-        self.dxf = dxf
+
+class FramesBase(EzDxfService):
+    ZERO_POINT = Vec2(0, 0)
+
+    def __init__(self, *, base_data: FramesBaseInputSchema) -> None:
+        self.thickness = base_data.thickness
+        self.height_platband_stands = base_data.height_platband_stands
+        self.doorway = base_data.doorway
 
     @staticmethod
     def get_coordinates_angle_line(
         start_point: Vec2, angle_degrees: float, length: float
     ) -> Vec2:
-        # Приведем угол к диапазону от 0 до 360
-        angle_degrees = angle_degrees % 360
+        """
+        Возвращает конечные координаты линии под углом.
 
-        # Определим четверть
-        if 0 <= angle_degrees < 90:
-            # Первая четверть: x и y увеличиваются
-            delta_x = length * math.cos(math.radians(angle_degrees))
-            delta_y = length * math.sin(math.radians(angle_degrees))
-        elif 90 <= angle_degrees < 180:
-            # Вторая четверть: x уменьшается, y увеличивается
-            delta_x = -length * math.sin(math.radians(180 - angle_degrees))
-            delta_y = length * math.cos(math.radians(180 - angle_degrees))
-        elif 180 <= angle_degrees < 270:
-            # Третья четверть: x и y уменьшаются
-            delta_x = -length * math.cos(math.radians(angle_degrees - 180))
-            delta_y = -length * math.sin(math.radians(angle_degrees - 180))
-        else:
-            # Четвертая четверть: x увеличивается, y уменьшается
-            delta_x = length * math.sin(math.radians(360 - angle_degrees))
-            delta_y = -length * math.cos(math.radians(360 - angle_degrees))
+        @param start_point: Стартовая точка;
+        @param angle_degrees: Угол (по четвертям);
+        @param length: Длина отрезка;
+        @return: Vec2
 
-        # Определяем конечные координаты
-        x_end = round(start_point[0] + delta_x, 1)
-        y_end = round(start_point[1] + delta_y, 1)
+        @raises: InternalError, если angle_degrees равен прямому углу
+            (90, 180, 270, 360);
+        """
+        # приводим угол к диапазону от 0 до 360
+        angle_degrees %= 360
+
+        angle_degrees_radians = math.radians(angle_degrees)
+        degrees_90_radians = math.radians(90)
+
+        match angle_degrees:
+            case x if 0 < x < 90:
+                # 1 четверть
+                angle_radians = degrees_90_radians - angle_degrees_radians
+                delta_x = math.sin(angle_radians) * length
+                delta_y = math.cos(angle_radians) * length
+            case x if 90 < x < 180:
+                # 2 четверть
+                angle_radians = degrees_90_radians * 2 - angle_degrees_radians
+                delta_x = -math.cos(angle_radians) * length
+                delta_y = math.sin(angle_radians) * length
+            case x if 180 < x < 270:
+                # 3 четверть
+                angle_radians = degrees_90_radians * 3 - angle_degrees_radians
+                delta_x = -math.sin(angle_radians) * length
+                delta_y = -math.cos(angle_radians) * length
+            case x if 270 < x < 360:
+                # 4 четверть
+                angle_radians = degrees_90_radians * 4 - angle_degrees_radians
+                delta_x = math.cos(angle_radians) * length
+                delta_y = -math.sin(angle_radians) * length
+            case x if x in (0, 90, 180, 270):
+                raise ValueError(
+                    "Метод get_coordinates_angle_line не предназначен для"
+                    f"прямых углов (угол={x})."
+                )
+            case _ as unexpected:
+                assert_never(unexpected)
+
+        x_end = round(start_point.x + delta_x, 2)
+        y_end = round(start_point.y + delta_y, 2)
 
         return Vec2(x_end, y_end)
 
     @staticmethod
-    def get_drawing_arc_data(p1: Vec2, p2: Vec2, p3: Vec2):
+    def get_drawing_arc_data(p1: Vec2, p2: Vec2, p3: Vec2, clockwise: bool):
         # Вычисляем центр и радиус окружности, проходящей через три точки
-        arc = ConstructionArc.from_3p(p1, p3, p2, False)
+        arc = ConstructionArc.from_3p(p1, p3, p2, clockwise)
 
         center = arc.center
         radius = arc.radius

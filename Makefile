@@ -29,7 +29,11 @@ tests:
 	# без mark "local": tests -m "not local"
 	poetry run pytest --cov-report xml --cov-report term --cov src -n 4 tests
 
-exe:
+
+linux:
 	# пример:
-	# -F - один файл;
-	pyinstaller -F -n draw_frames.exe pyinstaller main.py
+	# -F - один файл; -D - одна папка
+	pyinstaller -F -D -n draw_frames --paths $$(poetry env info --path)/bin/pyinstaller src/main.py
+
+exe:
+	pyinstaller -F -D -n draw_frames src/main.py

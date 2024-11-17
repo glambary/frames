@@ -8,8 +8,10 @@ from pydantic import (
     model_validator,
 )
 
+from exception.custom import ValueFromUserError
 
-class RangeCellParamsSchema(BaseModel):
+
+class RangeCellInputSchema(BaseModel):
     """Схема диапазона ячеек для обхода excel документа построчно."""
 
     start_row: NonNegativeInt
@@ -18,7 +20,7 @@ class RangeCellParamsSchema(BaseModel):
     end_column: NonPositiveInt
 
 
-class SheetParamsSchema(BaseModel):
+class SheetInputSchema(BaseModel):
     """Схема параметров для получения страницы excel документа."""
 
     name: str | None = None
@@ -29,12 +31,14 @@ class SheetParamsSchema(BaseModel):
     def validate(cls, data: dict[str, Any]) -> dict[str, Any]:
         """Проверяет входные значения."""
         if not (data["name"] or data["index"]):
-            raise ValidationError("Один из параметров name, index обязателен.")
+            raise ValueFromUserError(
+                "Один из параметров name, index обязателен."
+            )
 
         return data
 
 
-class CellCoordinatesSchema(BaseModel):
+class CellCoordinatesInputSchema(BaseModel):
     """Схема строки и колонки ячейки."""
 
     row: NonNegativeInt

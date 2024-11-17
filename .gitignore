@@ -1,6 +1,9 @@
 # Custom
 docs/
 raw/
+*.xls*
+*.dxf*
+*.doc*
 
 
 # Byte-compiled / optimized / DLL files

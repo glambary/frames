@@ -7,10 +7,10 @@ from openpyxl.worksheet.worksheet import Worksheet
 from pydantic import ValidationError
 
 from exception.custom import UnexpectedResultError
-from schemas.excel.args import (
-    CellCoordinatesSchema,
-    RangeCellParamsSchema,
-    SheetParamsSchema,
+from schemas.excel.input import (
+    CellCoordinatesInputSchema,
+    RangeCellInputSchema,
+    SheetInputSchema,
 )
 from schemas.types import BaseModelType
 
@@ -23,7 +23,7 @@ class ExcelService:
     def __init__(self, file: str) -> None:
         self.workbook: Workbook = load_workbook(filename=file)
 
-    def _get_sheet(self, sheet_params: SheetParamsSchema) -> Worksheet:
+    def _get_sheet(self, sheet_params: SheetInputSchema) -> Worksheet:
         """Возвращает страницу документа."""
         sheet_name = sheet_params.name
         sheet_index = sheet_params.index
@@ -38,12 +38,12 @@ class ExcelService:
 
     def get_rows_data(
         self,
-        sheet_params: SheetParamsSchema,
-        range_cell_params: RangeCellParamsSchema,
-        raw_answer: bool = False,
+        sheet_params: SheetInputSchema,
+        range_cell_params: RangeCellInputSchema,
+        raw_answer: bool = True,
         columns: dict[int, str] | None = None,
-        validate_to_schema: BaseModelType | None = None,
-    ) -> BaseReturnType:
+        validate_to_schema: type[BaseModelType] | None = None,
+    ) -> BaseReturnType | tuple[BaseReturnType, dict[int, ValidationError]]:
         """
         Возвращает информацию из excel страницы построчно.
 
@@ -77,6 +77,7 @@ class ExcelService:
                 )
 
         result = []
+        rows_with_exc = {}
         for n, row in enumerate(iter_rows, start=1):
             data = {
                 field_name: row[column]
@@ -87,22 +88,23 @@ class ExcelService:
             try:
                 result.append(validate_to_schema.model_validate(data))
             except ValidationError as exc:
-                logging.warning(
-                    f"Значения строки {n} заполнены не полностью "
-                    f"или некорректно.",
-                    exc_info=exc,
-                )
+                rows_with_exc[n] = exc
+                # logging.warning(
+                #     f"Значения строки {n} заполнены не полностью "
+                #     f"или некорректно.",
+                #     exc_info=exc,
+                # )
                 continue
 
-        return tuple(result)
+        return tuple(result), rows_with_exc
 
     def get_cell_values(
         self,
-        sheet_params: SheetParamsSchema,
-        cells: tuple[str | CellCoordinatesSchema, ...],
-        raw_answer: bool = False,
+        sheet_params: SheetInputSchema,
+        cells: tuple[str | CellCoordinatesInputSchema, ...],
+        raw_answer: bool = True,
         name_fields: tuple[str, ...] | None = None,
-        validate_to_schema: BaseModelType | None = None,
+        validate_to_schema: type[BaseModelType] | None = None,
     ) -> BaseReturnType:
         """
         Возвращает значения из указанных ячеек.
@@ -122,15 +124,15 @@ class ExcelService:
 
         match cells[0]:
             case str():
-                func = lambda cell: sheet[cell].value  # noqa: E731
-            case CellCoordinatesSchema():
-                func = lambda cell: sheet.cell(  # noqa: E731
+                func_get_cell = lambda cell: sheet[cell].value  # noqa: E731
+            case CellCoordinatesInputSchema():
+                func_get_cell = lambda cell: sheet.cell(  # noqa: E731
                     row=cell.row, column=cell.column
                 ).value
             case _ as unexpected_result:
                 assert_never(unexpected_result)
 
-        values = tuple(func(cell) for cell in cells)
+        values = tuple(func_get_cell(cell) for cell in cells)
 
         if raw_answer:
             return values
