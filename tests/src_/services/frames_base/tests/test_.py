@@ -3,7 +3,7 @@ from src_.services.frames_base.test_cases.t_cases import (
     GetCoordinatesAngleLineSuccess,
 )
 
-from services.frames_base import FramesBase
+from services.frames.frames_base import FramesBase
 
 
 @parametrize_with_cases(

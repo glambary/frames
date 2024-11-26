@@ -3,8 +3,8 @@ from typing import assert_never
 
 from ezdxf.math import ConstructionArc, Vec2
 
-from schemas.frames_common.input import FramesBaseInputSchema
-from services.ezdxf import EzDxfService
+from services.frames.ezdxf import EzDxfService
+from services.frames.schemas.frames_common.input import FramesBaseInputSchema
 
 
 class FramesBase(EzDxfService):
@@ -71,7 +71,9 @@ class FramesBase(EzDxfService):
         return Vec2(x_end, y_end)
 
     @staticmethod
-    def get_drawing_arc_data(p1: Vec2, p2: Vec2, p3: Vec2, clockwise: bool):
+    def get_drawing_arc_data(
+        p1: Vec2, p2: Vec2, p3: Vec2, clockwise: bool
+    ) -> tuple[float, float, float, float]:
         # Вычисляем центр и радиус окружности, проходящей через три точки
         arc = ConstructionArc.from_3p(p1, p3, p2, clockwise)
 

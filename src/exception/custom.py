@@ -1,18 +1,18 @@
-class BaseCustomException(Exception):
+class BaseCustomError(Exception):
     """Базовое исключение."""
 
 
-class UnexpectedResultError(BaseCustomException):
+class UnexpectedResultError(BaseCustomError):
     """Неожиданный результат."""
 
 
-class StartUpError(BaseCustomException):
+class StartUpError(BaseCustomError):
     """Ошибка при запуске."""
 
 
-class InternalError(BaseCustomException):
+class InternalError(BaseCustomError):
     """Внутренняя ошибка."""
 
 
-class ValueFromUserError(BaseCustomException):
+class ValueFromUserError(BaseCustomError):
     """Ошибка значения от пользователя."""

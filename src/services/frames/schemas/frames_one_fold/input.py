@@ -1,8 +1,10 @@
-from pydantic import BaseModel, Field, PositiveFloat, PositiveInt
+from typing import Any
+
+from pydantic import BaseModel, Field, PositiveFloat
 
 
 class FramesOneFoldInputSchema(BaseModel):
-    number: str
+    number: Any
     depth: PositiveFloat
     width_left: PositiveFloat
     width_right: PositiveFloat
@@ -25,8 +27,12 @@ class HolesInputSchema(BaseModel):
     diameter: PositiveFloat | None
     top: PositiveFloat | None
     bottom: PositiveFloat | None
-    center: PositiveFloat | None
+    middle: PositiveFloat | None
     from_edge: PositiveFloat | None
 
-    button_hole_x_coordinate: PositiveFloat | None
-    button_hole_y_coordinate: PositiveFloat | None
+    button_hole_x_center_coordinate: PositiveFloat | None
+    button_hole_y_center_coordinate: PositiveFloat | None
+
+
+class FramesOneFoldConstructionInputSchema(BaseModel):
+    thickness_frames: float

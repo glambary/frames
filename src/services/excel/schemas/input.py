@@ -1,27 +1,21 @@
 from typing import Any
 
-from pydantic import (
-    BaseModel,
-    NonNegativeInt,
-    NonPositiveInt,
-    ValidationError,
-    model_validator,
-)
+from pydantic import BaseModel, NonNegativeInt, PositiveInt, model_validator
 
 from exception.custom import ValueFromUserError
 
 
 class RangeCellInputSchema(BaseModel):
-    """Схема диапазона ячеек для обхода excel документа построчно."""
+    """Схема диапазона ячеек для обхода schemas документа построчно."""
 
-    start_row: NonNegativeInt
-    end_row: NonPositiveInt
-    start_column: NonNegativeInt
-    end_column: NonPositiveInt
+    start_row: PositiveInt
+    end_row: PositiveInt
+    start_column: PositiveInt
+    end_column: PositiveInt
 
 
 class SheetInputSchema(BaseModel):
-    """Схема параметров для получения страницы excel документа."""
+    """Схема параметров для получения страницы schemas документа."""
 
     name: str | None = None
     index: NonNegativeInt | None = None
@@ -30,7 +24,7 @@ class SheetInputSchema(BaseModel):
     @classmethod
     def validate(cls, data: dict[str, Any]) -> dict[str, Any]:
         """Проверяет входные значения."""
-        if not (data["name"] or data["index"]):
+        if data.get("name") is None and data.get("index") is None:
             raise ValueFromUserError(
                 "Один из параметров name, index обязателен."
             )
@@ -41,5 +35,9 @@ class SheetInputSchema(BaseModel):
 class CellCoordinatesInputSchema(BaseModel):
     """Схема строки и колонки ячейки."""
 
-    row: NonNegativeInt
-    column: NonNegativeInt
+    row: PositiveInt
+    column: PositiveInt
+
+    def __hash__(self):
+        """Возвращает хэш."""
+        return hash((self.row, self.column))
