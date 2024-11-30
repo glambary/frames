@@ -5,6 +5,7 @@ from datetime import date, datetime
 from typing import Literal
 
 from exception.custom import StartUpError
+from services.start_limiter.exception import StartLimiterError
 
 
 class SimpleStartLimiter:
@@ -31,7 +32,7 @@ class SimpleStartLimiter:
         bios_date = self._get_bios_date()
 
         if system_date > self.dt or bios_date > self.dt:
-            raise StartUpError
+            raise StartLimiterError
 
     @classmethod
     def _get_bios_date(cls) -> date:

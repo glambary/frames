@@ -1,4 +1,6 @@
 import math
+from random import randint
+from sys import stdout
 from typing import assert_never
 
 from ezdxf.math import ConstructionArc, Vec2
@@ -14,6 +16,22 @@ class FramesBase(EzDxfService):
         self.thickness = base_data.thickness
         self.height_platband_stands = base_data.height_platband_stands
         self.doorway = base_data.doorway
+
+        name_folder = "_".join(
+            str(i)
+            for i in (
+                base_data.number_order,
+                base_data.date_order,
+                base_data.name_client,
+                base_data.address_order,
+            )
+            if i
+        ) or ("Обрамления-" + str(randint(0, 1000)))
+        name_folder = name_folder.replace(" ", "_")
+        self.path_folder: str = self._get_absolute_path(
+            base_data.path_folder or "", name_folder
+        )
+        stdout.write("Рабочая папка: " + self.path_folder + "\n")
 
     @staticmethod
     def get_coordinates_angle_line(

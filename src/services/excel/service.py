@@ -1,3 +1,6 @@
+import logging
+from collections.abc import Generator
+from types import TracebackType
 from typing import Any
 
 from openpyxl.reader.excel import load_workbook
@@ -6,6 +9,8 @@ from openpyxl.worksheet.worksheet import Worksheet
 from pydantic import ValidationError
 
 from exception.custom import UnexpectedResultError
+from services.base.service import BaseService
+from services.excel.exceptions import ExcelNeverError, ExcelValueFromUserError
 from services.excel.schemas.input import (
     CellCoordinatesInputSchema,
     RangeCellInputSchema,
@@ -14,53 +19,62 @@ from services.excel.schemas.input import (
 from services.excel.types import BaseModelChildType
 
 
-class ExcelService:
-    """Сервис для взаимодействия с файлами schemas."""
+class BaseExcelService(BaseService):
+    """Базовый сервис для взаимодействия с excel файлами."""
 
-    BaseReturnType = tuple[(tuple[Any, ...] | BaseModelChildType), ...]
+    _workbook: Workbook
 
     def __init__(self, file: str) -> None:
-        self.workbook: Workbook = load_workbook(filename=file, data_only=True)
+        self._file = file
+
+    def __enter__(self):
+        self._workbook = load_workbook(filename=self._file, data_only=True)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        if self._workbook:
+            self._workbook.close()
 
     def _get_sheet(self, sheet_params: SheetInputSchema) -> Worksheet:
         """Возвращает страницу документа."""
+        if not self._workbook:
+            raise ExcelNeverError("Документ не открыт.")
+
         sheet_name = sheet_params.name
         sheet_index = sheet_params.index
 
         if sheet_name is not None:
-            return self.workbook[sheet_name]
+            return self._workbook[sheet_name]
 
         if sheet_index is not None:
-            return self.workbook.worksheets[sheet_index]
+            return self._workbook.worksheets[sheet_index]
 
-        raise UnexpectedResultError("Недостижимый участок кода.")
+        raise ExcelNeverError(
+            "При получении страницы, не передан sheet_name или sheet_index."
+        )
 
-    def get_rows_data(
-        self,
-        sheet_params: SheetInputSchema,
-        range_cell_params: RangeCellInputSchema,
-        raw_answer: bool = True,
-        columns: dict[int, str] | None = None,
-        validate_to_schema: type[BaseModelChildType] | None = None,
-    ) -> (
-        BaseReturnType
-        | tuple[tuple[BaseReturnType, ...], dict[int, ValidationError]]
-    ):
-        """
-        Возвращает информацию из schemas страницы построчно.
+    @staticmethod
+    def _get_cell_value(
+        sheet: Worksheet, cell: str | CellCoordinatesInputSchema
+    ) -> Any:
+        if isinstance(cell, str):
+            return sheet[cell].value
+        if isinstance(cell, CellCoordinatesInputSchema):
+            return sheet.cell(row=cell.row, column=cell.column).value
 
-        :param sheet_params: Параметры для выбора страницы;
-        :param range_cell_params: Параметры для выбора строк, столбцов;
-        :param raw_answer: Вернуть сырой ответ или нет;
-        :param columns: Если ответ НЕ сырой,
-            то формат {номер_колонки: имя_поля из validate_to_schema}
-        :param validate_to_schema: Pydantic схема;
+        raise ExcelNeverError(
+            f"Некорректный тип ячейки: {type(cell).__name__}"
+        )
 
-        Если схема validate_to_schema не сможет создаться, то строка будет
-        пропущена.
-        """
-        sheet: Worksheet = self._get_sheet(sheet_params)
-
+    @staticmethod
+    def _get_iter_rows(
+        sheet: Worksheet, range_cell_params: RangeCellInputSchema
+    ) -> Generator[tuple[Any, ...], None, None]:
         iter_rows = sheet.iter_rows(
             min_row=range_cell_params.start_row,
             max_row=range_cell_params.end_row,
@@ -68,14 +82,41 @@ class ExcelService:
             max_col=range_cell_params.end_column,
             values_only=True,
         )
+        return iter_rows
 
-        if raw_answer:
-            return tuple(iter_rows)
 
+class ExcelService(BaseExcelService):
+    """Сервис для взаимодействия с excel файлами."""
+
+    BaseReturnType = tuple[Any, ...] | BaseModelChildType
+
+    def get_rows_data(
+        self,
+        sheet_params: SheetInputSchema,
+        range_cell_params: RangeCellInputSchema,
+        columns: dict[int, str] | None = None,
+        validate_to_schema: type[BaseModelChildType] | None = None,
+    ) -> tuple[tuple[BaseReturnType, ...], dict[int, ValidationError] | None]:
+        """Возвращает данные из страницы построчно."""
+        common_log_information = self._get_common_log_information(
+            self.get_rows_data
+        )
+
+        sheet: Worksheet = self._get_sheet(sheet_params)
+
+        iter_rows = self._get_iter_rows(sheet, range_cell_params)
+
+        if not validate_to_schema:
+            return tuple(iter_rows), None
+
+        # Проверка, что для ответа в pydantic схемах переданы
+        # необходимые параметры
         for a in (columns, validate_to_schema):
             if not a:
-                raise ValueError(
-                    f"Для получения ответа в pydantic схемах, {a} обязателен."
+                raise UnexpectedResultError(
+                    common_log_information
+                    + f"Для получения ответа в pydantic схемах, "
+                    f"{a} обязателен."
                 )
 
         result = []
@@ -90,12 +131,13 @@ class ExcelService:
             try:
                 result.append(validate_to_schema.model_validate(data))
             except ValidationError as exc:
-                rows_with_exc[n] = exc
-                # logging.warning(
-                #     f"Значения строки {n} заполнены не полностью "
-                #     f"или некорректно.",
-                #     exc_info=exc,
-                # )
+                if len({r for r in data.values() if r is not None}) > 1:
+                    rows_with_exc[n] = exc
+                    logging.warning(
+                        common_log_information
+                        + f"Значения строки {n}-{list(data.values())} заполнены некорректно.",
+                        exc_info=exc,
+                    )
                 continue
 
         return tuple(result), rows_with_exc
@@ -103,79 +145,61 @@ class ExcelService:
     def get_cell_values(
         self,
         sheet_params: SheetInputSchema,
-        cells: tuple[str | CellCoordinatesInputSchema, ...]
-        | dict[str, str | CellCoordinatesInputSchema],
-        raw_answer: bool = True,
+        cells: (
+            tuple[str | CellCoordinatesInputSchema, ...]
+            | dict[str, str | CellCoordinatesInputSchema]
+        ),
         validate_to_schema: type[BaseModelChildType] | None = None,
     ) -> BaseReturnType:
-        """
-        Получает значения из указанных ячеек.
-
-        1. Если `cells` передан в виде кортежа (tuple),
-            возвращаются сырые данные (если `raw_answer=True`).
-        2. Если `cells` передан в виде словаря (dict) и указана схема
-            `validate_to_schema`, данные преобразуются и валидируются в объект
-            Pydantic-схемы (если `raw_answer=False`).
-
-        :param sheet_params: Параметры для выбора страницы.
-        :param cells:
-            - Кортеж адресов ячеек (например, "A1", "B2") или объектов
-                `CellCoordinatesInputSchema` для получения сырых данных.
-            - Словарь, где ключи - названия полей, а значения - адреса ячеек
-                или объекты `CellCoordinatesInputSchema`, для валидации
-                через Pydantic-схему.
-        :param raw_answer:
-            - Если True, возвращает сырые данные
-                (только для `cells` в формате кортежа).
-            - Если False, выполняет преобразование данных в Pydantic-схему
-                (только для `cells` в формате словаря).
-        :param validate_to_schema: Pydantic-схема для валидации данных,
-            требуется, если `raw_answer=False`.
-
-        :return: Сырые данные в виде кортежа или объект Pydantic-схемы.
-        """
-
-        def get_cell_value(cell: str | CellCoordinatesInputSchema) -> Any:
-            if isinstance(cell, str):
-                return sheet[cell].value
-            if isinstance(cell, CellCoordinatesInputSchema):
-                return sheet.cell(row=cell.row, column=cell.column).value
-
-            raise TypeError(f"Некорректный тип ячейки: {type(cell).__name__}")
-
-        sheet: Worksheet = self._get_sheet(sheet_params)
+        """Возвращает значения из указанных ячеек."""
+        common_log_information = self._get_common_log_information(
+            self.get_cell_values
+        )
 
         if not cells:
             return ()
 
-        # Проверка формата данных и флага raw_answer
-        if isinstance(cells, tuple) and not raw_answer:
-            raise ValueError(
-                "Для `cells` в формате tuple `raw_answer` должен быть True."
+        # Проверка формата данных и validate_to_schema
+        if isinstance(cells, tuple) and validate_to_schema:
+            raise ExcelNeverError(
+                common_log_information + "Для `cells` в формате tuple,"
+                "`validate_to_schema` должен быть None."
             )
-        if isinstance(cells, dict) and raw_answer:
-            raise ValueError(
-                "Для `cells` в формате dict `raw_answer` должен быть False."
+        if isinstance(cells, dict) and not validate_to_schema:
+            raise ExcelNeverError(
+                common_log_information + "Для `cells` в формате dict,"
+                "`validate_to_schema` должен быть передан."
             )
+
+        sheet: Worksheet = self._get_sheet(sheet_params)
 
         # Обработка данных
         if isinstance(cells, tuple):
             # Сырые данные (только tuple)
-            return tuple(get_cell_value(cell) for cell in cells)
+            return tuple(self._get_cell_value(sheet, cell) for cell in cells)
 
         if isinstance(cells, dict):
-            # Проверка наличия схемы для валидации
-            if not validate_to_schema:
-                raise ValueError(
-                    "Для преобразования в Pydantic-схему необходимо "
-                    "указать `validate_to_schema`."
-                )
             # Преобразование данных для схемы
             data_to_validate = {
-                field_name: get_cell_value(cell)
+                field_name: self._get_cell_value(sheet, cell)
                 for field_name, cell in cells.items()
             }
-            return validate_to_schema.model_validate(data_to_validate)
+            try:
+                schema = validate_to_schema.model_validate(data_to_validate)
+            except ValidationError as exc:
+                msg = f"Ошибка при валидации схемы {validate_to_schema}."
+                logging.warning(
+                    common_log_information + msg,
+                    exc_info=exc,
+                )
+                raise ExcelValueFromUserError(
+                    common_log_information + msg
+                ) from exc
+
+            return schema
 
         # Если формат cells не распознан
-        raise ValueError(f"Некорректный формат cells: {type(cells).__name__}")
+        raise ExcelNeverError(
+            common_log_information
+            + f"Некорректный формат cells: {type(cells).__name__}"
+        )

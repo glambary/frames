@@ -8,10 +8,10 @@ from exception.custom import ValueFromUserError
 class RangeCellInputSchema(BaseModel):
     """Схема диапазона ячеек для обхода schemas документа построчно."""
 
-    start_row: PositiveInt
-    end_row: PositiveInt
-    start_column: PositiveInt
-    end_column: PositiveInt
+    start_row: PositiveInt | None = None
+    end_row: PositiveInt | None = None
+    start_column: PositiveInt | None = None
+    end_column: PositiveInt | None = None
 
 
 class SheetInputSchema(BaseModel):

@@ -1,11 +1,13 @@
 import logging
+from sys import stdout
 from time import perf_counter, sleep
 
-from exception.custom import BaseCustomError, StartUpError, ValueFromUserError
 from logs.config import logging_config
 from logs.schemas import LogLevelsEnum
+from services.excel.exceptions import ExcelNeverError, ExcelValueFromUserError
 from services.excel.schemas.input import RangeCellInputSchema, SheetInputSchema
 from services.excel.service import ExcelService
+from services.frames.exception import FramesNeverError
 from services.frames.frames_one_fold import FramesOneFold
 from services.frames.schemas.frames_common.input import FramesBaseInputSchema
 from services.frames.schemas.frames_one_fold.input import (
@@ -13,9 +15,10 @@ from services.frames.schemas.frames_one_fold.input import (
     FramesOneFoldInputSchema,
     HolesInputSchema,
 )
+from services.start_limiter.exception import StartLimiterError
 
 
-def main(excel_file_name: str, exe_file_name: str) -> None:
+def main(excel_file_name: str) -> None:
     """Главная функция."""
     # Настройки логирования
     logging_config(LogLevelsEnum.DEBUG)
@@ -27,92 +30,116 @@ def main(excel_file_name: str, exe_file_name: str) -> None:
     # SimpleStartLimiter(date(2024, 11, 15))()
 
     # Получение данных из schemas файла
-    excel_service = ExcelService("Обрамления.xlsx")
+    excel_service = ExcelService(excel_file_name)
     sheet_params = SheetInputSchema(index=0)
-    base_data = excel_service.get_cell_values(
-        sheet_params=sheet_params,
-        cells={
-            "number_order": "J2",
-            "date_order": "J3",
-            "name_client": "J4",
-            "address_order": "J5",
-            "path_folder": "J6",
-            "doorway": "J9",
-            "thickness": "J10",
-            "height_platband_stands": "J12",
-        },
-        raw_answer=False,
-        validate_to_schema=FramesBaseInputSchema,
-    )
-    frames_data, frames_data_exc = excel_service.get_rows_data(
-        sheet_params=sheet_params,
-        range_cell_params=RangeCellInputSchema(
-            start_row=2,
-            end_row=52,
-            start_column=1,
-            end_column=7,
-        ),
-        raw_answer=False,
-        columns={
-            1: "number",
-            2: "depth",
-            3: "width_left",
-            4: "width_right",
-            5: "height_top",
-            6: "button_hole_left",
-            7: "button_hole_right",
-        },
-        validate_to_schema=FramesOneFoldInputSchema,
-    )
-    holes_data = excel_service.get_cell_values(
-        sheet_params=sheet_params,
-        cells={
-            "diameter": "J14",
-            "top": "J16",
-            "bottom": "J17",
-            "middle": "J18",
-            "from_edge": "J19",
-            "button_hole_x_center_coordinate": "J22",
-            "button_hole_y_center_coordinate": "J23",
-        },
-        raw_answer=False,
-        validate_to_schema=HolesInputSchema,
-    )
-    construction_data = excel_service.get_cell_values(
-        sheet_params=sheet_params,
-        cells={
-            "thickness_frames": "J11",
-        },
-        raw_answer=False,
-        validate_to_schema=FramesOneFoldConstructionInputSchema,
-    )
+
+    # открытие файла
+    with excel_service:
+        # Базовые данные
+        base_data = excel_service.get_cell_values(
+            sheet_params=sheet_params,
+            cells={
+                "number_order": "J2",
+                "date_order": "J3",
+                "name_client": "J4",
+                "address_order": "J5",
+                "path_folder": "J6",
+                "doorway": "J9",
+                "thickness": "J10",
+                "height_platband_stands": "J12",
+            },
+            validate_to_schema=FramesBaseInputSchema,
+        )
+
+        # Данные по отверстиям под крепления, кнопки
+        holes_data = excel_service.get_cell_values(
+            sheet_params=sheet_params,
+            cells={
+                "diameter": "J14",
+                "top": "J16",
+                "bottom": "J17",
+                "middle": "J18",
+                "from_edge": "J19",
+                "button_hole_x_center_coordinate": "J22",
+                "button_hole_y_center_coordinate": "J23",
+            },
+            validate_to_schema=HolesInputSchema,
+        )
+
+        # Данные по особенностям конструкции
+        construction_data = excel_service.get_cell_values(
+            sheet_params=sheet_params,
+            cells={
+                "thickness_frames": "J11",
+            },
+            validate_to_schema=FramesOneFoldConstructionInputSchema,
+        )
+
+        # Данные по обрамлениям
+        frames_data, frames_data_exc = excel_service.get_rows_data(
+            sheet_params=sheet_params,
+            range_cell_params=RangeCellInputSchema(
+                start_row=2,
+                end_row=52,
+                start_column=1,
+                end_column=7,
+            ),
+            columns={
+                1: "number",
+                2: "depth",
+                3: "width_left",
+                4: "width_right",
+                5: "height_top",
+                6: "button_hole_left",
+                7: "button_hole_right",
+            },
+            validate_to_schema=FramesOneFoldInputSchema,
+        )
 
     # Черчение обрамлений
-    FramesOneFold(
+    results = FramesOneFold(
         base_data=base_data,
         thickness_frames=construction_data.thickness_frames,
         holes_data=holes_data,
     )(frames_data=frames_data)
 
     # Сообщение о выполнении / статистика
+    if frames_data_exc:
+        stdout.write(
+            f"Информация о строках в которых произошла ошибка: "
+            f"{list(frames_data_exc.keys())}" + "\n"
+        )
+
+    # Вывод результатов
+    if results:
+        for file_name, rows in results.items():
+            stdout.write(f"{file_name} - {rows}." + "\n")
 
 
 if __name__ == "__main__":
     start_time = perf_counter()
 
     try:
-        main("1", "2")
-    except ValueFromUserError as exc:
-        logging.error(
-            "Проверьте правильность введённых значений.", exc_info=exc
+        main("Обрамления.xlsx")
+    except (ExcelNeverError, FramesNeverError) as exc:
+        msg = "Произошла ошибка в коде. Сообщите разработчику."
+        stdout.write(msg + "\n")
+        logging.error(msg, exc_info=exc)
+    except ExcelValueFromUserError as exc:
+        msg = (
+            "Пользовательская ошибка. Проверьте корректность введённых данных."
         )
-    except StartUpError as exc:
+        stdout.write(msg + "\n")
+        logging.error(msg, exc_info=exc)
+    except StartLimiterError as exc:
         # если запущен SimpleStartLimiter
-        logging.error("Пробный период окончен.", exc_info=exc)
-    except BaseCustomError as exc:
-        logging.error("Произошла ошибка.", exc_info=exc)
+        msg = "Внимание! Пробный период окончен."
+        stdout.write(msg + "\n")
+        logging.error(msg, exc_info=exc)
     except Exception as exc:
-        logging.critical("Незапланированная ошибка.", exc_info=exc)
+        msg = "Произошла незапланированная ошибка. Сообщите разработчику."
+        stdout.write(msg + "\n")
+        logging.critical(msg, exc_info=exc)
 
     end_time = perf_counter()
 

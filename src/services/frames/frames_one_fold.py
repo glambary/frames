@@ -1,10 +1,11 @@
 from collections import defaultdict
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, assert_never, cast
 
 from ezdxf.math import Vec2
 
-from exception.custom import ValueFromUserError
+from services.frames.exception import FramesValueFromUserError
 from services.frames.frames_base import FramesBase
 from services.frames.schemas.frames_common.enums import SideEnum, ThicknessEnum
 from services.frames.schemas.frames_one_fold.input import (
@@ -35,7 +36,7 @@ class FramesOneFold(FramesBase):
 
         # self.thickness из FramesBase
         if self.thickness not in self.SUPPORTED_THICKNESS:
-            raise ValueFromUserError(
+            raise FramesValueFromUserError(
                 f"Толщина {self.thickness} не поддерживается."
             )
 
@@ -43,11 +44,17 @@ class FramesOneFold(FramesBase):
             self.thickness
         ]
 
+        path_stands = Path(self.path_folder, "Стойки")
+        path_tops = Path(self.path_folder, "Верхушки")
+        for path in (path_stands, path_tops):
+            path.mkdir(parents=True, exist_ok=True)
+
+        self.path_stands = path_stands
+        self.path_tops = path_tops
+
     def __call__(
-        self,
-        frames_data: tuple[FramesOneFoldInputSchema, ...],
-        # need_to_grouped: False,
-    ):
+        self, frames_data: tuple[FramesOneFoldInputSchema, ...]
+    ) -> dict[str, list[str]]:
         left_platbands: dict[PlatbandPostInternalSchema, list[str]] = (
             defaultdict(list)
         )
@@ -72,37 +79,44 @@ class FramesOneFold(FramesBase):
                 width=f.width_right,
                 button_hole=f.button_hole_right,
             )
+
             number = f.number
             left_platbands[left_schema].append(number)
             right_platbands[right_schema].append(number)
             top_platbands[f].append(number)
 
+        results: dict[str, list[str]] = {}
         for data, numbers in left_platbands.items():
-            self.draw_left_platband(data, numbers)
+            file_name = self.draw_left_platband(data, numbers)
+            results[file_name] = numbers
 
         for data, numbers in right_platbands.items():
-            self.draw_right_platband(data, numbers)
+            file_name = self.draw_right_platband(data, numbers)
+            results[file_name] = numbers
 
         for data, numbers in top_platbands.items():
-            self.draw_top_platband(data, numbers)
+            file_name = self.draw_top_platband(data, numbers)
+            results[file_name] = numbers
+
+        return results
 
     def draw_left_platband(
         self, data: PlatbandPostInternalSchema, numbers: list[str]
-    ) -> None:
+    ) -> str:
         return self._draw_stand_platband(
             data=data, numbers=numbers, side=SideEnum.LEFT
         )
 
     def draw_right_platband(
         self, data: PlatbandPostInternalSchema, numbers: list[str]
-    ) -> None:
+    ) -> str:
         return self._draw_stand_platband(
             data=data, numbers=numbers, side=SideEnum.RIGHT
         )
 
     def draw_top_platband(
         self, data: FramesOneFoldInputSchema, numbers: list[str]
-    ) -> None:
+    ) -> str:
         document, model_space = self.get_document_and_model_space()
 
         inaccuracy_one_fold = 2.4
@@ -288,10 +302,11 @@ class FramesOneFold(FramesBase):
                     center=h, radius=self.holes_data.diameter / 2
                 )
 
-        document.saveas(
-            "/media/shadkevich/storage_ntfs/virtualbox/common_with_virtualbox/ЧЕРТЕЖИ/MY/"
-            + "top.dxf"
-        )
+        file_name = self._get_top_file_name(data=data, numbers=numbers)
+        path = self._get_absolute_path(*(str(self.path_tops), file_name))
+        document.saveas(path)
+
+        return file_name
 
     # вспомогательные методы стоек
     # -------------------------------------------------------------------------
@@ -301,7 +316,7 @@ class FramesOneFold(FramesBase):
         data: PlatbandPostInternalSchema,
         numbers: list[str],
         side: SideEnum,
-    ) -> None:
+    ) -> str:
         document, model_space = self.get_document_and_model_space()
 
         # контур
@@ -329,10 +344,13 @@ class FramesOneFold(FramesBase):
                 points=coordinates_button_hole, close=True
             )
 
-        document.saveas(
-            "/media/shadkevich/storage_ntfs/virtualbox/common_with_virtualbox/ЧЕРТЕЖИ/MY/"
-            + self._get_stand_file_name(data=data, numbers=numbers, side=side)
+        file_name = self._get_stand_file_name(
+            data=data, numbers=numbers, side=side
         )
+        path = self._get_absolute_path(*(str(self.path_stands), file_name))
+        document.saveas(path)
+
+        return file_name
 
     @staticmethod
     def _select_func_side(
@@ -433,9 +451,30 @@ class FramesOneFold(FramesBase):
         else:
             side_output = ""
 
+        button_hole = data.button_hole
+        if button_hole:
+            button_hole = button_hole.replace("*", "_")
+            hole_output = f"_Отв-{button_hole}"
+        else:
+            hole_output = ""
+
         return (
             f"{len(numbers)}шт{side_output}"
-            f"_глубина-{int(data.depth)}"
-            f"_ширина-{int(data.width)}"
+            f"_Г-{int(data.depth)}"
+            f"_Ш-{int(data.width)}"
+            f"{hole_output}"
+            f".dxf"
+        )
+
+    @staticmethod
+    def _get_top_file_name(
+        data: FramesOneFoldInputSchema, numbers: list[str]
+    ) -> str:
+        return (
+            f"{len(numbers)}шт"
+            f"_Г-{int(data.depth)}"
+            f"_Шл-{int(data.width_left)}"
+            f"_Шп-{int(data.width_right)}"
+            f"_В-{int(data.height_top)}"
             f".dxf"
         )

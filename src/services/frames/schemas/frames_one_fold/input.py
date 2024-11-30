@@ -13,13 +13,20 @@ class FramesOneFoldInputSchema(BaseModel):
     button_hole_right: str | None = Field(pattern=r"(\d{1,3})\*(\d{1,3})")
 
     def __hash__(self) -> int:
-        """
-        Формирование хэша.
-
-        Используется, для понимания какие верхние наличники одинаковые.
-        """
+        """Возвращает хэш."""
         return hash(
             (self.depth, self.width_left, self.width_right, self.height_top)
+        )
+
+    def __eq__(self, other: Any) -> bool:
+        """Возвращает результат сравнения объектов."""
+        return all(
+            (
+                self.depth == other.depth,
+                self.width_left == other.width_left,
+                self.width_right == other.width_right,
+                self.height_top == other.height_top,
+            )
         )
 
 
