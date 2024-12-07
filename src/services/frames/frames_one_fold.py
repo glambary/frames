@@ -508,15 +508,27 @@ class FramesOneFold(FramesBase):
             f".dxf"
         )
 
-    @staticmethod
     def _get_top_file_name(
+        self,
         data: FramesOneFoldInputSchema, numbers: list[str]
     ) -> str:
         return (
             f"{len(numbers)}шт"
+            f"_П-{int(self.doorway)}"
             f"_Г-{int(data.depth)}"
             f"_Шл-{int(data.width_left)}"
             f"_Шп-{int(data.width_right)}"
             f"_В-{int(data.height_top)}"
             f".dxf"
         )
+
+
+class FramesOneFoldStandsHelper:
+    def __init__(
+        self,
+        instance_frames: FramesOneFold,
+        frames_data: tuple[FramesOneFoldInputSchema, ...],
+    ) -> None:
+        # TODO идея для рефакторинга:
+        #  вынести всю логику по черчению стоек сюда
+        pass
