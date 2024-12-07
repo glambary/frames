@@ -26,4 +26,3 @@ def test__success(
     y = abs(res[1] - expected_coordinates[1])
     assert x <= 0.1
     assert y <= 0.1
-

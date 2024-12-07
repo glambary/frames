@@ -10,6 +10,8 @@ from services.frames.schemas.frames_common.input import FramesBaseInputSchema
 
 
 class FramesBase(EzDxfService):
+    """Базовый класс обрамлений."""
+
     ZERO_POINT = Vec2(0, 0)
 
     def __init__(self, *, base_data: FramesBaseInputSchema) -> None:
@@ -26,7 +28,7 @@ class FramesBase(EzDxfService):
                 base_data.address_order,
             )
             if i
-        ) or ("Обрамления-" + str(randint(0, 1000)))
+        ) or ("Обрамления-" + str(randint(0, 1000)))  # noqa S311
         name_folder = name_folder.replace(" ", "_")
         self.path_folder: str = self._get_absolute_path(
             base_data.path_folder or "", name_folder
@@ -92,6 +94,7 @@ class FramesBase(EzDxfService):
     def get_drawing_arc_data(
         p1: Vec2, p2: Vec2, p3: Vec2, clockwise: bool
     ) -> tuple[float, float, float, float]:
+        """Возвращает данные для построения дуги."""
         # Вычисляем центр и радиус окружности, проходящей через три точки
         arc = ConstructionArc.from_3p(p1, p3, p2, clockwise)
 

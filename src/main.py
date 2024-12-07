@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 from sys import stdout
 from time import perf_counter, sleep
 
@@ -16,6 +17,7 @@ from services.frames.schemas.frames_one_fold.input import (
     HolesInputSchema,
 )
 from services.start_limiter.exception import StartLimiterError
+from services.start_limiter.service import SimpleStartLimiter
 
 
 def main(excel_file_name: str) -> None:
@@ -25,9 +27,12 @@ def main(excel_file_name: str) -> None:
     # Отключение loggers библиотек
     logging.getLogger("ezdxf").propagate = False
 
+    # sys.stdout = open(os.devnull, 'w')
+    # sys.stderr = open(os.devnull, 'w')
+
     # Пробная версия по "даты". Задать перед созданием exe файла!
     # Закомментировать, если не нужно
-    # SimpleStartLimiter(date(2024, 11, 15))()
+    SimpleStartLimiter(date(2024, 11, 15))()
 
     # Получение данных из schemas файла
     excel_service = ExcelService(excel_file_name)
@@ -105,15 +110,29 @@ def main(excel_file_name: str) -> None:
 
     # Сообщение о выполнении / статистика
     if frames_data_exc:
+        stdout.write("\n")
         stdout.write(
-            f"Информация о строках в которых произошла ошибка: "
-            f"{list(frames_data_exc.keys())}" + "\n"
+            f"Строки, в которых произошла ошибка: "
+            f"{list(frames_data_exc.keys())}. "
+            f"Количество - {len(frames_data_exc)}" + "\n"
         )
+        stdout.write(str(frames_data_exc))
+        stdout.write("\n")
 
     # Вывод результатов
     if results:
+        stdout.write("\n")
+        stdout.write("Информация по файлам:" + "\n")
+        rows_all = set()
         for file_name, rows in results.items():
             stdout.write(f"{file_name} - {rows}." + "\n")
+            rows_all.update(rows)
+
+        stdout.write("\n")
+        stdout.write(
+            f"Количество начерченных комплектов обрамления - "
+            f"{len(rows_all)}." + "\n"
+        )
 
 
 if __name__ == "__main__":

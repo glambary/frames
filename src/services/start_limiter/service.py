@@ -32,7 +32,7 @@ class SimpleStartLimiter:
         bios_date = self._get_bios_date()
 
         if system_date > self.dt or bios_date > self.dt:
-            raise StartLimiterError
+            raise StartLimiterError(f"Пробный период по {self.dt}.")
 
     @classmethod
     def _get_bios_date(cls) -> date:

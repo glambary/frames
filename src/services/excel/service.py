@@ -28,6 +28,7 @@ class BaseExcelService(BaseService):
         self._file = file
 
     def __enter__(self):
+        """Контекстный менеджер вход."""
         self._workbook = load_workbook(filename=self._file, data_only=True)
         return self
 
@@ -37,6 +38,7 @@ class BaseExcelService(BaseService):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
+        """Контекстный менеджер выход."""
         if self._workbook:
             self._workbook.close()
 
@@ -132,10 +134,12 @@ class ExcelService(BaseExcelService):
                 result.append(validate_to_schema.model_validate(data))
             except ValidationError as exc:
                 if len({r for r in data.values() if r is not None}) > 1:
-                    rows_with_exc[n] = exc
+                    values = list(data.values())
+                    rows_with_exc[n] = values
                     logging.warning(
                         common_log_information
-                        + f"Значения строки {n}-{list(data.values())} заполнены некорректно.",
+                        + f"Значения строки {n}-{values} "
+                        f"заполнены некорректно.",
                         exc_info=exc,
                     )
                 continue

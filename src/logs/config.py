@@ -12,6 +12,6 @@ def logging_config(log_level: LogLevelsEnum) -> None:
         ),
         handlers=[
             logging.FileHandler("app.log"),  # запись в файл
-            logging.StreamHandler(),  # вывод в консоль
+            # logging.StreamHandler(),  # вывод в консоль
         ],
     )

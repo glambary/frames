@@ -18,9 +18,15 @@ from services.frames.schemas.frames_one_fold.internal import (
 
 
 class FramesOneFold(FramesBase):
+    """Обрамления с одним отгибом."""
+
+    class InaccuracyOnePointZero:
+        INACCURACY_STEEL_REAMER = 3.63
+        INACCURACY_ONE_FOLD = 2.82
+
     SUPPORTED_THICKNESS = {ThicknessEnum.ONE_POINT_ZERO}
     # погрешность развёртки стали
-    INACCURACY_STEEL_REAMER = {ThicknessEnum.ONE_POINT_ZERO: 3.63}
+    INACCURACY_MAP = {ThicknessEnum.ONE_POINT_ZERO: InaccuracyOnePointZero}
 
     def __init__(
         self,
@@ -40,9 +46,7 @@ class FramesOneFold(FramesBase):
                 f"Толщина {self.thickness} не поддерживается."
             )
 
-        self._inaccuracy_steel_reamer = self.INACCURACY_STEEL_REAMER[
-            self.thickness
-        ]
+        self._inaccuracy_data = self.INACCURACY_MAP[self.thickness]
 
         path_stands = Path(self.path_folder, "Стойки")
         path_tops = Path(self.path_folder, "Верхушки")
@@ -55,16 +59,23 @@ class FramesOneFold(FramesBase):
     def __call__(
         self, frames_data: tuple[FramesOneFoldInputSchema, ...]
     ) -> dict[str, list[str]]:
+        """Чертит обрамления."""
         left_platbands: dict[PlatbandPostInternalSchema, list[str]] = (
             defaultdict(list)
         )
         right_platbands: dict[PlatbandPostInternalSchema, list[str]] = (
             defaultdict(list)
         )
+        identical_platbands: dict[PlatbandPostInternalSchema, list[str]] = (
+            defaultdict(list)
+        )
         top_platbands: dict[FramesOneFoldInputSchema, list[str]] = defaultdict(
             list
         )
-
+        part_condition_identical = (
+            self.holes_data.top == self.holes_data.bottom
+            and (self.holes_data.middle * 2 == self.height_platband_stands)
+        )
         for f in frames_data:
             # потому что в листе замеров без учета отгиба
             f.depth += self.thickness_frames
@@ -81,8 +92,17 @@ class FramesOneFold(FramesBase):
             )
 
             number = f.number
-            left_platbands[left_schema].append(number)
-            right_platbands[right_schema].append(number)
+
+            if part_condition_identical and not left_schema.button_hole:
+                identical_platbands[left_schema].append(number)
+            else:
+                left_platbands[left_schema].append(number)
+
+            if part_condition_identical and not right_schema.button_hole:
+                identical_platbands[right_schema].append(number)
+            else:
+                right_platbands[right_schema].append(number)
+
             top_platbands[f].append(number)
 
         results: dict[str, list[str]] = {}
@@ -94,6 +114,10 @@ class FramesOneFold(FramesBase):
             file_name = self.draw_right_platband(data, numbers)
             results[file_name] = numbers
 
+        for data, numbers in identical_platbands.items():
+            file_name = self.draw_identical_platband(data, numbers)
+            results[file_name] = numbers
+
         for data, numbers in top_platbands.items():
             file_name = self.draw_top_platband(data, numbers)
             results[file_name] = numbers
@@ -103,6 +127,7 @@ class FramesOneFold(FramesBase):
     def draw_left_platband(
         self, data: PlatbandPostInternalSchema, numbers: list[str]
     ) -> str:
+        """Чертит левую стойку."""
         return self._draw_stand_platband(
             data=data, numbers=numbers, side=SideEnum.LEFT
         )
@@ -110,13 +135,23 @@ class FramesOneFold(FramesBase):
     def draw_right_platband(
         self, data: PlatbandPostInternalSchema, numbers: list[str]
     ) -> str:
+        """Чертит правую стойку."""
         return self._draw_stand_platband(
             data=data, numbers=numbers, side=SideEnum.RIGHT
+        )
+
+    def draw_identical_platband(
+        self, data: PlatbandPostInternalSchema, numbers: list[str]
+    ) -> str:
+        """Чертит идентичную стойку."""
+        return self._draw_stand_platband(
+            data=data, numbers=numbers, side=SideEnum.IDENTICAL
         )
 
     def draw_top_platband(
         self, data: FramesOneFoldInputSchema, numbers: list[str]
     ) -> str:
+        """Чертит верхний наличник."""
         document, model_space = self.get_document_and_model_space()
 
         inaccuracy_one_fold = 2.4
@@ -317,6 +352,7 @@ class FramesOneFold(FramesBase):
         numbers: list[str],
         side: SideEnum,
     ) -> str:
+        """Чертит стойку."""
         document, model_space = self.get_document_and_model_space()
 
         # контур
@@ -356,6 +392,7 @@ class FramesOneFold(FramesBase):
     def _select_func_side(
         side: SideEnum,
     ) -> Callable[[float | int], float | int]:
+        """Возвращает функцию для выбора направления для конкретной стороны."""
         match side:
             case side.LEFT | side.IDENTICAL:
                 return lambda x: x
@@ -367,13 +404,14 @@ class FramesOneFold(FramesBase):
     def _get_stand_contour_coordinates(
         self, data: PlatbandPostInternalSchema, side: SideEnum
     ) -> tuple[Vec2, Vec2, Vec2, Vec2]:
+        """Возвращает координаты контура стойки."""
         func_side = self._select_func_side(side)
 
         width = (
             data.depth
             + data.width
             + self.thickness_frames
-            - self._inaccuracy_steel_reamer
+            - self._inaccuracy_data.INACCURACY_STEEL_REAMER
         )
         height = self.height_platband_stands
 
@@ -390,21 +428,22 @@ class FramesOneFold(FramesBase):
     def _get_button_hole_coordinates(
         self, data: PlatbandPostInternalSchema, side: SideEnum
     ) -> tuple[Vec2, Vec2, Vec2, Vec2]:
+        """Возвращает координаты отверстия под кнопку."""
+        inaccuracy = self._inaccuracy_data.INACCURACY_ONE_FOLD
         func_side = self._select_func_side(side)
 
         width_hole, height_hole = map(float, data.button_hole.split("*"))
 
         if self.holes_data.button_hole_x_center_coordinate:
             x1_delta = (
-                self.holes_data.button_hole_x_center_coordinate
-                + width_hole / 2
+                data.width
+                - self.holes_data.button_hole_x_center_coordinate
+                - width_hole / 2
             )
         else:
             # по умолчанию посередине стойки
-            x1_delta = data.width / 2 + width_hole / 2
-        x1 = func_side(
-            self.thickness_frames + x1_delta - self._inaccuracy_steel_reamer
-        )
+            x1_delta = data.width / 2 - width_hole / 2
+        x1 = func_side(self.thickness_frames + x1_delta - inaccuracy)
 
         if self.holes_data.button_hole_y_center_coordinate:
             y1 = (
@@ -425,6 +464,10 @@ class FramesOneFold(FramesBase):
     def _get_stand_coordinates_holes(
         self, side: SideEnum
     ) -> tuple[Vec2, Vec2, Vec2]:
+        """Возвращает координаты отверстий под крепление."""
+        # погрешность одного изгиба
+        inaccuracy = self._inaccuracy_data.INACCURACY_ONE_FOLD
+
         func_side = self._select_func_side(side)
 
         y_top = self.height_platband_stands - self.holes_data.top
@@ -432,9 +475,7 @@ class FramesOneFold(FramesBase):
         y_bottom = self.holes_data.bottom
 
         x_delta = (
-            self.thickness_frames
-            + self.holes_data.from_edge
-            - self._inaccuracy_steel_reamer
+            self.thickness_frames + self.holes_data.from_edge - inaccuracy
         )
         x_coord = self.ZERO_POINT.x + func_side(x_delta)
 
@@ -446,6 +487,7 @@ class FramesOneFold(FramesBase):
     def _get_stand_file_name(
         data: PlatbandPostInternalSchema, numbers: list[str], side: SideEnum
     ) -> str:
+        """Возвращает имя файла стойки."""
         if side != side.IDENTICAL:
             side_output = f"_{side}"
         else:

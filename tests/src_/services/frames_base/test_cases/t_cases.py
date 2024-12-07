@@ -1,4 +1,6 @@
 class GetCoordinatesAngleLineSuccess:
+    """Кейсы получения координат линии под углом."""
+
     ReturnType = tuple[int, tuple[int, int], float]
     ANGLE = 63
     A = 1

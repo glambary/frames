@@ -26,6 +26,7 @@ exclude = [
     "migrations",
     "*.j2",
     "*.txt",
+    "raw"
 ]
 
 # Настройки линтеров

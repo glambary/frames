@@ -2,6 +2,8 @@ from pydantic import BaseModel, NonNegativeInt, PositiveFloat
 
 
 class FramesBaseInputSchema(BaseModel):
+    """Базовые размеры обрамлений."""
+
     thickness: PositiveFloat
     height_platband_stands: PositiveFloat
     doorway: PositiveFloat

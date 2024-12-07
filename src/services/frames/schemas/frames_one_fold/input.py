@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field, PositiveFloat
 
 
 class FramesOneFoldInputSchema(BaseModel):
+    """Размеры этажа обрамлений."""
+
     number: Any
     depth: PositiveFloat
     width_left: PositiveFloat
@@ -31,6 +33,8 @@ class FramesOneFoldInputSchema(BaseModel):
 
 
 class HolesInputSchema(BaseModel):
+    """Размеры отверстий обрамлений."""
+
     diameter: PositiveFloat | None
     top: PositiveFloat | None
     bottom: PositiveFloat | None
@@ -42,4 +46,6 @@ class HolesInputSchema(BaseModel):
 
 
 class FramesOneFoldConstructionInputSchema(BaseModel):
+    """Размеры конструкции обрамлений."""
+
     thickness_frames: float
