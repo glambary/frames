@@ -27,12 +27,9 @@ def main(excel_file_name: str) -> None:
     # Отключение loggers библиотек
     logging.getLogger("ezdxf").propagate = False
 
-    # sys.stdout = open(os.devnull, 'w')
-    # sys.stderr = open(os.devnull, 'w')
-
     # Пробная версия по "даты". Задать перед созданием exe файла!
     # Закомментировать, если не нужно
-    SimpleStartLimiter(date(2024, 11, 15))()
+    # SimpleStartLimiter(date(2024, 11, 15))()
 
     # Получение данных из schemas файла
     excel_service = ExcelService(excel_file_name)

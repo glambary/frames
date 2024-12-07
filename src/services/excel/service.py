@@ -98,7 +98,7 @@ class ExcelService(BaseExcelService):
         range_cell_params: RangeCellInputSchema,
         columns: dict[int, str] | None = None,
         validate_to_schema: type[BaseModelChildType] | None = None,
-    ) -> tuple[tuple[BaseReturnType, ...], dict[int, ValidationError] | None]:
+    ) -> tuple[tuple[BaseReturnType, ...], dict[int, list[Any]] | None]:
         """Возвращает данные из страницы построчно."""
         common_log_information = self._get_common_log_information(
             self.get_rows_data
@@ -123,7 +123,7 @@ class ExcelService(BaseExcelService):
 
         result = []
         rows_with_exc = {}
-        for n, row in enumerate(iter_rows, start=1):
+        for n, row in enumerate(iter_rows, start=2):
             data = {
                 field_name: row[column - 1]
                 for column, field_name in columns.items()
