@@ -32,8 +32,8 @@ tests:
 
 linux:
 	# пример:
-	# -F - один файл; -D - одна папка
-	pyinstaller -F -D -n draw_frames --paths $$(poetry env info --path)/bin/pyinstaller src/main.py
+	# --onefile - один файл; -D - одна папка; -с - не закрывать консоль
+	pyinstaller --onefile -n draw_frames --paths $$(poetry env info --path)/bin/pyinstaller src/main.py
 
 exe:
-	pyinstaller -F -D -n draw_frames src/main.py
+	pyinstaller --onefile -n draw_frames src/main.py

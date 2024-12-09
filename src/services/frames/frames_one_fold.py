@@ -94,11 +94,14 @@ class FramesOneFold(FramesBase):
             number = f.number
 
             if part_condition_identical and not left_schema.button_hole:
+                # поменять подсчёт начерченных обрамлений
+                # f"{number}л"
                 identical_platbands[left_schema].append(number)
             else:
                 left_platbands[left_schema].append(number)
 
             if part_condition_identical and not right_schema.button_hole:
+                #                 f"{number}п"
                 identical_platbands[right_schema].append(number)
             else:
                 right_platbands[right_schema].append(number)
@@ -509,8 +512,7 @@ class FramesOneFold(FramesBase):
         )
 
     def _get_top_file_name(
-        self,
-        data: FramesOneFoldInputSchema, numbers: list[str]
+        self, data: FramesOneFoldInputSchema, numbers: list[str]
     ) -> str:
         return (
             f"{len(numbers)}шт"

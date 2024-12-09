@@ -29,7 +29,7 @@ def main(excel_file_name: str) -> None:
 
     # Пробная версия по "даты". Задать перед созданием exe файла!
     # Закомментировать, если не нужно
-    # SimpleStartLimiter(date(2024, 11, 15))()
+    SimpleStartLimiter(date(2024, 12, 16))()
 
     # Получение данных из schemas файла
     excel_service = ExcelService(excel_file_name)
@@ -133,6 +133,7 @@ def main(excel_file_name: str) -> None:
 
 
 if __name__ == "__main__":
+    stdout.write("Старт программы." + "\n")
     start_time = perf_counter()
 
     try:
@@ -159,6 +160,6 @@ if __name__ == "__main__":
 
     end_time = perf_counter()
 
-    logging.info(f"Время выполнения t={end_time - start_time} сек.")
+    stdout.write(f"Время выполнения t={end_time - start_time} сек." + "\n")
 
     sleep(120)
