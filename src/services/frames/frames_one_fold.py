@@ -20,13 +20,15 @@ from services.frames.schemas.frames_one_fold.internal import (
 class FramesOneFold(FramesBase):
     """Обрамления с одним отгибом."""
 
-    class InaccuracyOnePointZero:
+    class OnePointZero:
+        FOR_WEIGHT = 7850 * 0.001
+
         INACCURACY_STEEL_REAMER = 3.63
         INACCURACY_ONE_FOLD = 2.82
 
     SUPPORTED_THICKNESS = {ThicknessEnum.ONE_POINT_ZERO}
     # погрешность развёртки стали
-    INACCURACY_MAP = {ThicknessEnum.ONE_POINT_ZERO: InaccuracyOnePointZero}
+    MATERIAL_MAP = {ThicknessEnum.ONE_POINT_ZERO: OnePointZero}
 
     def __init__(
         self,
@@ -46,7 +48,9 @@ class FramesOneFold(FramesBase):
                 f"Толщина {self.thickness} не поддерживается."
             )
 
-        self._inaccuracy_data = self.INACCURACY_MAP[self.thickness]
+        # TODO вынести толщины в отдельные место
+        #  и унаследовать от одного класса
+        self._material_data = self.MATERIAL_MAP[self.thickness]
 
         path_stands = Path(self.path_folder, "Стойки")
         path_tops = Path(self.path_folder, "Верхушки")
@@ -56,9 +60,11 @@ class FramesOneFold(FramesBase):
         self.path_stands = path_stands
         self.path_tops = path_tops
 
-    def __call__(
-        self, frames_data: tuple[FramesOneFoldInputSchema, ...]
-    ) -> dict[str, list[str]]:
+    def draw_frames(
+        self,
+        frames_data: tuple[FramesOneFoldInputSchema, ...],
+        need_identical: bool,
+    ) -> tuple[dict[str, list[str]], float]:
         """Чертит обрамления."""
         left_platbands: dict[PlatbandPostInternalSchema, list[str]] = (
             defaultdict(list)
@@ -73,7 +79,8 @@ class FramesOneFold(FramesBase):
             list
         )
         part_condition_identical = (
-            self.holes_data.top == self.holes_data.bottom
+            need_identical
+            and self.holes_data.top == self.holes_data.bottom
             and (self.holes_data.middle * 2 == self.height_platband_stands)
         )
         for f in frames_data:
@@ -93,43 +100,61 @@ class FramesOneFold(FramesBase):
 
             number = f.number
 
-            if part_condition_identical and not left_schema.button_hole:
-                # поменять подсчёт начерченных обрамлений
-                # f"{number}л"
-                identical_platbands[left_schema].append(number)
+            if part_condition_identical:
+                if not left_schema.button_hole:
+                    identical_platbands[left_schema].append(f"{number}л")
+                else:
+                    left_platbands[left_schema].append(number)
+                if not right_schema.button_hole:
+                    identical_platbands[right_schema].append(f"{number}п")
+                else:
+                    right_platbands[right_schema].append(number)
             else:
                 left_platbands[left_schema].append(number)
-
-            if part_condition_identical and not right_schema.button_hole:
-                #                 f"{number}п"
-                identical_platbands[right_schema].append(number)
-            else:
                 right_platbands[right_schema].append(number)
 
             top_platbands[f].append(number)
 
+        weights = []
         results: dict[str, list[str]] = {}
         for data, numbers in left_platbands.items():
-            file_name = self.draw_left_platband(data, numbers)
+            file_name, square = self.draw_left_platband(data, numbers)
             results[file_name] = numbers
+            weights.extend(
+                [square * self._material_data.FOR_WEIGHT] * len(numbers)
+            )
 
         for data, numbers in right_platbands.items():
-            file_name = self.draw_right_platband(data, numbers)
+            file_name, square = self.draw_right_platband(data, numbers)
             results[file_name] = numbers
+            weights.extend(
+                [square * self._material_data.FOR_WEIGHT] * len(numbers)
+            )
 
         for data, numbers in identical_platbands.items():
-            file_name = self.draw_identical_platband(data, numbers)
+            file_name, square = self.draw_identical_platband(data, numbers)
             results[file_name] = numbers
+            weights.extend(
+                [square * self._material_data.FOR_WEIGHT] * len(numbers)
+            )
 
         for data, numbers in top_platbands.items():
-            file_name = self.draw_top_platband(data, numbers)
+            file_name, square = self.draw_top_platband(data, numbers)
             results[file_name] = numbers
+            weights.extend(
+                [square * self._material_data.FOR_WEIGHT] * len(numbers)
+            )
 
-        return results
+        if weights:
+            average_weight = sum(weights) / len(weights) * 3
+        else:
+            average_weight = 0.0
+
+        return results, average_weight
 
     def draw_left_platband(
         self, data: PlatbandPostInternalSchema, numbers: list[str]
-    ) -> str:
+    ) -> tuple[str, float]:
         """Чертит левую стойку."""
         return self._draw_stand_platband(
             data=data, numbers=numbers, side=SideEnum.LEFT
@@ -137,7 +162,7 @@ class FramesOneFold(FramesBase):
 
     def draw_right_platband(
         self, data: PlatbandPostInternalSchema, numbers: list[str]
-    ) -> str:
+    ) -> tuple[str, float]:
         """Чертит правую стойку."""
         return self._draw_stand_platband(
             data=data, numbers=numbers, side=SideEnum.RIGHT
@@ -145,7 +170,7 @@ class FramesOneFold(FramesBase):
 
     def draw_identical_platband(
         self, data: PlatbandPostInternalSchema, numbers: list[str]
-    ) -> str:
+    ) -> tuple[str, float]:
         """Чертит идентичную стойку."""
         return self._draw_stand_platband(
             data=data, numbers=numbers, side=SideEnum.IDENTICAL
@@ -153,7 +178,7 @@ class FramesOneFold(FramesBase):
 
     def draw_top_platband(
         self, data: FramesOneFoldInputSchema, numbers: list[str]
-    ) -> str:
+    ) -> tuple[str, float]:
         """Чертит верхний наличник."""
         document, model_space = self.get_document_and_model_space()
 
@@ -258,6 +283,7 @@ class FramesOneFold(FramesBase):
         # первый вырез для гибки - конец
 
         # X - отгиб толщина обрамления
+        # самая крайняя точка по оси X
         p10_left = Vec2(p9_left.x - thickness_frames_length, p9_left.y)
         p10_right = Vec2(p9_right.x + thickness_frames_length, p9_right.y)
         model_space.add_line(p9_left, p10_left)
@@ -321,6 +347,7 @@ class FramesOneFold(FramesBase):
         # второй вырез для гибки - конец
 
         # Y - отгиб толщина обрамления
+        # самая крайняя точка по оси Y
         p16_y = p15_left.y + thickness_frames_length
         p16_left = Vec2(p15_left.x, p16_y)
         p16_right = Vec2(p15_right.x, p16_y)
@@ -344,7 +371,9 @@ class FramesOneFold(FramesBase):
         path = self._get_absolute_path(*(str(self.path_tops), file_name))
         document.saveas(path)
 
-        return file_name
+        square_in_meters = (p10_right.x * 2 / 1000) * p16_right.y / 1000
+
+        return file_name, square_in_meters
 
     # вспомогательные методы стоек
     # -------------------------------------------------------------------------
@@ -354,7 +383,7 @@ class FramesOneFold(FramesBase):
         data: PlatbandPostInternalSchema,
         numbers: list[str],
         side: SideEnum,
-    ) -> str:
+    ) -> tuple[str, float]:
         """Чертит стойку."""
         document, model_space = self.get_document_and_model_space()
 
@@ -389,7 +418,10 @@ class FramesOneFold(FramesBase):
         path = self._get_absolute_path(*(str(self.path_stands), file_name))
         document.saveas(path)
 
-        return file_name
+        p3 = contour_coordinates[2]
+        square_in_meters = abs(p3.x) / 1000 * p3.y / 1000
+
+        return file_name, square_in_meters
 
     @staticmethod
     def _select_func_side(
@@ -414,7 +446,7 @@ class FramesOneFold(FramesBase):
             data.depth
             + data.width
             + self.thickness_frames
-            - self._inaccuracy_data.INACCURACY_STEEL_REAMER
+            - self._material_data.INACCURACY_STEEL_REAMER
         )
         height = self.height_platband_stands
 
@@ -432,7 +464,7 @@ class FramesOneFold(FramesBase):
         self, data: PlatbandPostInternalSchema, side: SideEnum
     ) -> tuple[Vec2, Vec2, Vec2, Vec2]:
         """Возвращает координаты отверстия под кнопку."""
-        inaccuracy = self._inaccuracy_data.INACCURACY_ONE_FOLD
+        inaccuracy = self._material_data.INACCURACY_ONE_FOLD
         func_side = self._select_func_side(side)
 
         width_hole, height_hole = map(float, data.button_hole.split("*"))
@@ -469,7 +501,7 @@ class FramesOneFold(FramesBase):
     ) -> tuple[Vec2, Vec2, Vec2]:
         """Возвращает координаты отверстий под крепление."""
         # погрешность одного изгиба
-        inaccuracy = self._inaccuracy_data.INACCURACY_ONE_FOLD
+        inaccuracy = self._material_data.INACCURACY_ONE_FOLD
 
         func_side = self._select_func_side(side)
 

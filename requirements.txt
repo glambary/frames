@@ -1,3 +1,4 @@
+# cd Z:\virtualbox\common_with_virtualbox\DRAWNING\to_send\frames
 # python -m venv venv
 # venv\Scripts\activate
 
@@ -9,3 +10,4 @@ openpyxl
 pydantic
 pyinstaller
 wmi
+

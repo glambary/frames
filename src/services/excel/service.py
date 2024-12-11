@@ -123,7 +123,7 @@ class ExcelService(BaseExcelService):
 
         result = []
         rows_with_exc = {}
-        for n, row in enumerate(iter_rows, start=2):
+        for n, row in enumerate(iter_rows, start=range_cell_params.start_row):
             data = {
                 field_name: row[column - 1]
                 for column, field_name in columns.items()

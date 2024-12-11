@@ -1,6 +1,5 @@
 # Custom
-docs/
-raw/
+_data/
 *.xls*
 *.dxf*
 *.doc*

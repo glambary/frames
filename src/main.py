@@ -22,6 +22,8 @@ from services.start_limiter.service import SimpleStartLimiter
 
 def main(excel_file_name: str) -> None:
     """Главная функция."""
+    column = "X"
+
     # Настройки логирования
     logging_config(LogLevelsEnum.DEBUG)
     # Отключение loggers библиотек
@@ -29,7 +31,7 @@ def main(excel_file_name: str) -> None:
 
     # Пробная версия по "даты". Задать перед созданием exe файла!
     # Закомментировать, если не нужно
-    SimpleStartLimiter(date(2024, 12, 16))()
+    SimpleStartLimiter(date(2024, 12, 23))()
 
     # Получение данных из schemas файла
     excel_service = ExcelService(excel_file_name)
@@ -41,14 +43,14 @@ def main(excel_file_name: str) -> None:
         base_data = excel_service.get_cell_values(
             sheet_params=sheet_params,
             cells={
-                "number_order": "J2",
-                "date_order": "J3",
-                "name_client": "J4",
-                "address_order": "J5",
-                "path_folder": "J6",
-                "doorway": "J9",
-                "thickness": "J10",
-                "height_platband_stands": "J12",
+                "number_order": f"{column}2",
+                "date_order": f"{column}3",
+                "name_client": f"{column}4",
+                "address_order": f"{column}5",
+                "path_folder": f"{column}6",
+                "doorway": f"{column}9",
+                "thickness": f"{column}10",
+                "height_platband_stands": f"{column}12",
             },
             validate_to_schema=FramesBaseInputSchema,
         )
@@ -57,13 +59,13 @@ def main(excel_file_name: str) -> None:
         holes_data = excel_service.get_cell_values(
             sheet_params=sheet_params,
             cells={
-                "diameter": "J14",
-                "top": "J16",
-                "bottom": "J17",
-                "middle": "J18",
-                "from_edge": "J19",
-                "button_hole_x_center_coordinate": "J22",
-                "button_hole_y_center_coordinate": "J23",
+                "diameter": f"{column}14",
+                "top": f"{column}16",
+                "bottom": f"{column}17",
+                "middle": f"{column}18",
+                "from_edge": f"{column}19",
+                "button_hole_x_center_coordinate": f"{column}22",
+                "button_hole_y_center_coordinate": f"{column}23",
             },
             validate_to_schema=HolesInputSchema,
         )
@@ -72,7 +74,7 @@ def main(excel_file_name: str) -> None:
         construction_data = excel_service.get_cell_values(
             sheet_params=sheet_params,
             cells={
-                "thickness_frames": "J11",
+                "thickness_frames": f"{column}11",
             },
             validate_to_schema=FramesOneFoldConstructionInputSchema,
         )
@@ -81,8 +83,8 @@ def main(excel_file_name: str) -> None:
         frames_data, frames_data_exc = excel_service.get_rows_data(
             sheet_params=sheet_params,
             range_cell_params=RangeCellInputSchema(
-                start_row=2,
-                end_row=52,
+                start_row=3,
+                end_row=353,
                 start_column=1,
                 end_column=7,
             ),
@@ -98,12 +100,22 @@ def main(excel_file_name: str) -> None:
             validate_to_schema=FramesOneFoldInputSchema,
         )
 
+        need_identical = (
+            True
+            if excel_service.get_cell_values(
+                sheet_params,
+                cells=(f"{column}26",),
+            )[0]
+            == "+"
+            else False
+        )
+
     # Черчение обрамлений
-    results = FramesOneFold(
+    results, average_weight = FramesOneFold(
         base_data=base_data,
         thickness_frames=construction_data.thickness_frames,
         holes_data=holes_data,
-    )(frames_data=frames_data)
+    ).draw_frames(frames_data=frames_data, need_identical=need_identical)
 
     # Сообщение о выполнении / статистика
     if frames_data_exc:
@@ -131,9 +143,16 @@ def main(excel_file_name: str) -> None:
             f"{len(rows_all)}." + "\n"
         )
 
+    # # средний вес
+    # stdout.write("\n")
+    # stdout.write(
+    #     f"Средний вес комплекта: {round(average_weight, 2)} кг." + "\n"
+    # )
+
 
 if __name__ == "__main__":
     stdout.write("Старт программы." + "\n")
+    stdout.write("\n")
     start_time = perf_counter()
 
     try:
@@ -160,6 +179,7 @@ if __name__ == "__main__":
 
     end_time = perf_counter()
 
+    stdout.write("\n")
     stdout.write(f"Время выполнения t={end_time - start_time} сек." + "\n")
 
     sleep(120)
